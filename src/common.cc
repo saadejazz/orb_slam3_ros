@@ -12,7 +12,7 @@ ORB_SLAM3::System::eSensor sensor_type = ORB_SLAM3::System::NOT_SET;
 
 // Variables for ROS
 std::string world_frame_id, cam_frame_id, imu_frame_id;
-ros::Publisher pose_pub, odom_pub, kf_markers_pub;
+ros::Publisher pose_pub, odom_pub, kf_markers_pub, kf_list_pub;
 ros::Publisher tracked_mappoints_pub, all_mappoints_pub;
 ros::Publisher tracked_keypoints_pub;
 image_transport::Publisher tracking_img_pub;
@@ -76,6 +76,8 @@ void setup_publishers(ros::NodeHandle &node_handler, image_transport::ImageTrans
 
     kf_markers_pub = node_handler.advertise<visualization_msgs::Marker>(node_name + "/kf_markers", 1000);
 
+    kf_list_pub = node_handler.advertise<nav_msgs::Path>(node_name + "/kf_list", 1);
+
     if (sensor_type == ORB_SLAM3::System::IMU_MONOCULAR || sensor_type == ORB_SLAM3::System::IMU_STEREO || sensor_type == ORB_SLAM3::System::IMU_RGBD)
     {
         odom_pub = node_handler.advertise<nav_msgs::Odometry>(node_name + "/body_odom", 1);
@@ -100,6 +102,7 @@ void publish_topics(ros::Time msg_time, Eigen::Vector3f Wbb)
     publish_tracked_points(pSLAM->GetTrackedMapPoints(), msg_time);
     publish_all_points(pSLAM->GetAllMapPoints(), msg_time);
     publish_kf_markers(pSLAM->GetAllKeyframePoses(), msg_time);
+    publish_keyframe_list(pSLAM->GetAllKeyFrames(), msg_time);
 
     // IMU-specific topics
     if (sensor_type == ORB_SLAM3::System::IMU_MONOCULAR || sensor_type == ORB_SLAM3::System::IMU_STEREO || sensor_type == ORB_SLAM3::System::IMU_RGBD)
@@ -230,6 +233,36 @@ void publish_all_points(std::vector<ORB_SLAM3::MapPoint*> map_points, ros::Time 
     sensor_msgs::PointCloud2 cloud = mappoint_to_pointcloud(map_points, msg_time);
     
     all_mappoints_pub.publish(cloud);
+}
+
+// Publish keyframes
+void publish_keyframe_list(std::vector<ORB_SLAM3::KeyFrame*> keyframes, ros::Time msg_time)
+{
+    nav_msgs::Path kf_list;
+    kf_list.header.frame_id = world_frame_id;
+    kf_list.header.stamp = msg_time;
+
+    for (int i = 0; i < keyframes.size(); i++)
+    {
+        // add GetKeyframePose() function to System class
+
+        geometry_msgs::PoseStamped kf_pose;
+
+        Sophus::SE3f kf_pose_SE3f = pSLAM->GetKeyFramePose(keyframes[i]);
+
+        kf_pose.header.frame_id = world_frame_id;
+        kf_pose.header.stamp = ros::Time(keyframes[i]->mTimeStamp);
+        kf_pose.pose.position.x = kf_pose_SE3f.translation().x();
+        kf_pose.pose.position.y = kf_pose_SE3f.translation().y();
+        kf_pose.pose.position.z = kf_pose_SE3f.translation().z();
+        kf_pose.pose.orientation.w = kf_pose_SE3f.unit_quaternion().coeffs().w();
+        kf_pose.pose.orientation.x = kf_pose_SE3f.unit_quaternion().coeffs().x();
+        kf_pose.pose.orientation.y = kf_pose_SE3f.unit_quaternion().coeffs().y();
+        kf_pose.pose.orientation.z = kf_pose_SE3f.unit_quaternion().coeffs().z();
+        kf_list.poses.push_back(kf_pose);
+    }
+
+    kf_list_pub.publish(kf_list);
 }
 
 // More details: http://docs.ros.org/en/api/visualization_msgs/html/msg/Marker.html

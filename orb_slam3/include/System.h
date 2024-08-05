@@ -180,6 +180,8 @@ public:
     std::vector<cv::KeyPoint> GetTrackedKeyPoints();
     std::vector<MapPoint*> GetAllMapPoints();
     std::vector<Sophus::SE3f> GetAllKeyframePoses();
+    std::vector<KeyFrame*> GetAllKeyFrames();
+    Sophus::SE3f GetKeyFramePose(KeyFrame *pKF);
     cv::Mat GetCurrentFrame();
 
     Sophus::SE3f GetCamTwc();
